@@ -2,10 +2,10 @@
 nixPkgs = ["nodejs_18"]
 
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm install --legacy-peer-deps"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["NODE_ENV=production npm run build"]
 
 [start]
-cmd = "npm run start"
+cmd = "NODE_ENV=production npm run start"
