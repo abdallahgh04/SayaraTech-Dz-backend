@@ -14,7 +14,6 @@
     "@strapi/plugin-users-permissions": "4.25.3",
     "@strapi/provider-upload-cloudinary": "^4.25.23",
     "@strapi/strapi": "4.25.3",
-    "better-sqlite3": "^12.2.0",
     "cloudinary": "^2.7.0",
     "pg": "8.8.0",
     "react": "^18.3.1",
@@ -30,7 +29,7 @@
     "uuid": "ae9c1c01-f629-4d26-9529-bb0ca844bcb8"
   },
   "engines": {
-    "node": "18.x"
+    "node": "18.x",
     "npm": ">=6.0.0"
   },
   "license": "MIT"
