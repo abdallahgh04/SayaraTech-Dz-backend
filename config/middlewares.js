@@ -17,21 +17,10 @@ module.exports = [
   {
     name: 'strapi::cors',
     config: {
-      origin: [
-        'http://localhost:3000',   // CRA admin
-        'http://localhost:5173',   // Vite
-        'http://localhost:5174',   // Vite (port alternatif)
-        'http://localhost:5175',   // Vite (port alternatif)
-        'http://10.33.111.16:5173',
-        'http://10.33.111.16:5174',
-        // OAuth providers
-        'https://accounts.google.com',
-        'https://www.facebook.com',
-        'https://graph.facebook.com',
-      ],
+      origin: '*',
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       headers: ['*'],
-      credentials: true,
+      credentials: false,
     },
   },
   'strapi::poweredBy',
