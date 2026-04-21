@@ -20,6 +20,7 @@ module.exports = [
       origin: [
         'https://www.sayaratechdz.store',
         'https://sayaratechdz.store',
+        'https://tranquil-transformation-production-5166.up.railway.app',
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:5174',
