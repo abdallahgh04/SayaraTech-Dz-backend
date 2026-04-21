@@ -6,9 +6,50 @@ module.exports = {
   bootstrap({ strapi }) {
     strapi.server.router.get("/api/admin/users", async (ctx) => {
       try {
-        const users = await strapi.db.query("plugin::users-permissions.user").findMany({
+        // ── 1. التحقق من وجود Authorization header ──────────
+        const authHeader = ctx.request.headers['authorization'];
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          ctx.status = 401;
+          ctx.body = { error: 'Unauthorized: missing token' };
+          return;
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        // ── 2. التحقق من صحة الـ JWT ─────────────────────────
+        let decoded;
+        try {
+          decoded = await strapi.plugins['users-permissions'].services.jwt.verify(token);
+        } catch {
+          ctx.status = 401;
+          ctx.body = { error: 'Unauthorized: invalid token' };
+          return;
+        }
+
+        // ── 3. التحقق أن المستخدم admin أو superAdmin ────────
+        const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+          where: { id: decoded.id },
           populate: { role: true },
         });
+
+        if (!user || !user.role) {
+          ctx.status = 403;
+          ctx.body = { error: 'Forbidden: user not found' };
+          return;
+        }
+
+        const allowedRoles = ['admin', 'superadmin', 'Administrator'];
+        if (!allowedRoles.includes(user.role.type) && !allowedRoles.includes(user.role.name)) {
+          ctx.status = 403;
+          ctx.body = { error: 'Forbidden: insufficient permissions' };
+          return;
+        }
+
+        // ── 4. جلب جميع المستخدمين ───────────────────────────
+        const users = await strapi.db.query('plugin::users-permissions.user').findMany({
+          populate: { role: true },
+        });
+
         ctx.body = users.map(u => ({
           id: u.id,
           username: u.username,
@@ -18,6 +59,7 @@ module.exports = {
           vendeurStatus: u.vendeurStatus || null,
           role: u.role,
         }));
+
       } catch (e) {
         ctx.status = 500;
         ctx.body = { error: e.message };

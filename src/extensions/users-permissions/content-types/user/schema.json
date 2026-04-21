@@ -67,6 +67,12 @@
     },
     "vendeurStatus": {
       "type": "string"
+    },
+    "profil": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::profil.profil",
+      "mappedBy": "user"
     }
   }
 }

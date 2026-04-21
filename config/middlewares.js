@@ -18,10 +18,14 @@ module.exports = [
     name: 'strapi::cors',
     config: {
       origin: [
-        'http://localhost:3000',   // CRA admin
-        'http://localhost:5173',   // Vite
-        'http://localhost:5174',   // Vite (port alternatif)
-        'http://localhost:5175',   // Vite (port alternatif)
+        // Production
+        'https://www.sayaratechdz.store',
+        'https://sayaratechdz.store',
+        // Local dev
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5175',
         'http://10.33.111.16:5173',
         'http://10.33.111.16:5174',
         // OAuth providers
