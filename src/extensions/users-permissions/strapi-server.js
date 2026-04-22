@@ -2,8 +2,9 @@
 
 module.exports = (plugin) => {
 
-  // حفظ controller التسجيل الأصلي
+  // حفظ controllers الأصلية
   const originalRegister = plugin.controllers.auth.register;
+  const originalCallback = plugin.controllers.auth.callback;
 
   plugin.controllers.auth.register = async (ctx) => {
     const { isVendor, firstName, lastName, phone, birthDate, gender } = ctx.request.body;
@@ -92,6 +93,35 @@ module.exports = (plugin) => {
         confirmed: newUser.confirmed,
       },
     };
+  };
+
+  // معالجة Google callback
+  plugin.controllers.auth.callback = async (ctx) => {
+    try {
+      await originalCallback(ctx);
+
+      // إذا نجح الـ callback وفيه user في الـ body
+      if (ctx.body && ctx.body.user) {
+        const userId = ctx.body.user.id;
+
+        // تحقق إذا المستخدم ما عنده vendeurStatus، حطله pending
+        const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+          where: { id: userId },
+        });
+
+        if (user && !user.vendeurStatus) {
+          await strapi.db.query('plugin::users-permissions.user').update({
+            where: { id: userId },
+            data: { vendeurStatus: 'pending' },
+          });
+          ctx.body.user.vendeurStatus = 'pending';
+        }
+      }
+    } catch (err) {
+      strapi.log.error('Google callback error:', err);
+      ctx.status = 500;
+      ctx.body = { error: { message: 'حدث خطأ أثناء تسجيل الدخول بـ Google' } };
+    }
   };
 
   return plugin;
