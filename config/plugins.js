@@ -34,7 +34,7 @@ module.exports = ({ env }) => ({
           icon:         'google',
           key:          env('GOOGLE_CLIENT_ID',     ''),
           secret:       env('GOOGLE_CLIENT_SECRET', ''),
-          callbackURL:  env('GOOGLE_REDIRECT_URI',  'http://localhost:1337/api/connect/google/callback'),
+          callbackURL:  env('GOOGLE_REDIRECT_URI',  'https://tranquil-transformation-production-5166.up.railway.app/api/connect/google/callback'),
           scope: ['email', 'profile'],
         },
         facebook: {
