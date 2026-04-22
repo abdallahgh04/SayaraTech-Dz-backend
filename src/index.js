@@ -23,6 +23,16 @@ module.exports = {
       }
     });
 
+    // debug google error
+    strapi.server.router.get("/api/debug/google-error", async (ctx) => {
+      try {
+        const grant = strapi.server.app.middleware.find(m => m.name === 'grant' || (m && m.toString().includes('grant')));
+        ctx.body = { grantMiddleware: !!grant };
+      } catch(e) {
+        ctx.body = { error: e.message, stack: e.stack };
+      }
+    });
+
     strapi.server.router.get("/api/admin/users", async (ctx) => {
       try {
         // ── 1. التحقق من وجود Authorization header ──────────
