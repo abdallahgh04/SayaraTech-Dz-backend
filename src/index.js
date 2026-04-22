@@ -4,6 +4,25 @@ module.exports = {
   register({ strapi }) {},
 
   bootstrap({ strapi }) {
+
+    // debug google config
+    strapi.server.router.get("/api/debug/google", async (ctx) => {
+      try {
+        const store = strapi.store({ type: 'plugin', name: 'users-permissions' });
+        const grantConfig = await store.get({ key: 'grant' });
+        ctx.body = {
+          google: grantConfig && grantConfig.google ? {
+            enabled: grantConfig.google.enabled,
+            hasKey: !!grantConfig.google.key,
+            hasSecret: !!grantConfig.google.secret,
+            callbackURL: grantConfig.google.callback,
+          } : 'not configured in DB',
+        };
+      } catch (e) {
+        ctx.body = { error: e.message };
+      }
+    });
+
     strapi.server.router.get("/api/admin/users", async (ctx) => {
       try {
         // ── 1. التحقق من وجود Authorization header ──────────
