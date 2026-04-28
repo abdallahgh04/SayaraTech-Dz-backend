@@ -3,6 +3,23 @@
 const { createCoreController } = require('@strapi/strapi').factories;
 
 module.exports = createCoreController('api::purchase.purchase', ({ strapi }) => ({
+  // ── Create: إضافة user تلقائياً ──────────────────────
+  async create(ctx) {
+    const user = ctx.state.user;
+
+    if (!user) {
+      return ctx.unauthorized('You must be logged in');
+    }
+
+    // إضافة user تلقائياً
+    ctx.request.body.data = {
+      ...ctx.request.body.data,
+      user: user.id,
+    };
+
+    return super.create(ctx);
+  },
+
   // ── Find: المستخدم يرى طلباته فقط ────────────────────
   async find(ctx) {
     const user = ctx.state.user;
@@ -17,14 +34,11 @@ module.exports = createCoreController('api::purchase.purchase', ({ strapi }) => 
     }
 
     // Acheteur يرى طلباته فقط
-    // نفترض أن Purchase له حقل userId أو علاقة مع user
-    // إذا لم يكن موجوداً، أضفه في schema
     ctx.query = {
       ...ctx.query,
       filters: {
         ...ctx.query.filters,
-        // أضف هنا الفلتر حسب user id
-        // مثال: user: user.id
+        user: { id: user.id },
       },
     };
 
@@ -56,10 +70,9 @@ module.exports = createCoreController('api::purchase.purchase', ({ strapi }) => 
     }
 
     // المستخدم يرى طلبه فقط
-    // تحقق من أن الطلب يخصه (حسب schema الخاص بك)
-    // if (purchase.user?.id !== user.id) {
-    //   return ctx.forbidden('You cannot access this purchase');
-    // }
+    if (purchase.user?.id !== user.id) {
+      return ctx.forbidden('You cannot access this purchase');
+    }
 
     return super.findOne(ctx);
   },
