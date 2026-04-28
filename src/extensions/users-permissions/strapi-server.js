@@ -1,20 +1,11 @@
 'use strict';
 
 module.exports = (plugin) => {
-
-  // حفظ controllers الأصلية
   const originalRegister = plugin.controllers.auth.register;
   const originalCallback = plugin.controllers.auth.callback;
 
   plugin.controllers.auth.register = async (ctx) => {
     const { isVendor, firstName, lastName, phone, birthDate, gender } = ctx.request.body;
-
-    // إذا مش vendor، نستخدم التسجيل العادي
-    if (!isVendor) {
-      return originalRegister(ctx);
-    }
-
-    // ── تسجيل Vendor ──────────────────────────────────────────
     const { username, email, password } = ctx.request.body;
 
     if (!username || !email || !password) {
@@ -34,14 +25,29 @@ module.exports = (plugin) => {
       return;
     }
 
-    // جلب دور Authenticated (الافتراضي)
-    const defaultRole = await strapi.db.query('plugin::users-permissions.role').findOne({
-      where: { type: 'authenticated' },
-    });
+    // ── تحديد الـ role حسب isVendor ──────────────────────
+    let role;
+    
+    if (isVendor) {
+      role = await strapi.db.query('plugin::users-permissions.role').findOne({
+        where: { type: 'vendeur' },
+      });
+    } else {
+      role = await strapi.db.query('plugin::users-permissions.role').findOne({
+        where: { type: 'acheteur' },
+      });
+    }
 
-    if (!defaultRole) {
+    // fallback إلى authenticated إذا لم يوجد
+    if (!role) {
+      role = await strapi.db.query('plugin::users-permissions.role').findOne({
+        where: { type: 'authenticated' },
+      });
+    }
+
+    if (!role) {
       ctx.status = 500;
-      ctx.body = { error: { message: 'لم يتم العثور على الدور الافتراضي' } };
+      ctx.body = { error: { message: 'لم يتم العثور على الدور المطلوب' } };
       return;
     }
 
@@ -59,8 +65,8 @@ module.exports = (plugin) => {
         provider: 'local',
         confirmed: true,
         blocked: false,
-        vendeurStatus: 'pending',
-        role: defaultRole.id,
+        vendeurStatus: isVendor ? 'pending' : null,
+        role: role.id,
       },
     });
 
@@ -82,15 +88,22 @@ module.exports = (plugin) => {
     // توليد JWT
     const jwt = strapi.plugins['users-permissions'].services.jwt.issue({ id: newUser.id });
 
+    // إرجاع المستخدم مع الـ role
+    const userWithRole = await strapi.db.query('plugin::users-permissions.user').findOne({
+      where: { id: newUser.id },
+      populate: { role: true },
+    });
+
     ctx.status = 200;
     ctx.body = {
       jwt,
       user: {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email,
-        vendeurStatus: newUser.vendeurStatus,
-        confirmed: newUser.confirmed,
+        id: userWithRole.id,
+        username: userWithRole.username,
+        email: userWithRole.email,
+        vendeurStatus: userWithRole.vendeurStatus,
+        confirmed: userWithRole.confirmed,
+        role: userWithRole.role,
       },
     };
   };
@@ -100,11 +113,9 @@ module.exports = (plugin) => {
     try {
       await originalCallback(ctx);
 
-      // إذا نجح الـ callback وفيه user في الـ body
       if (ctx.body && ctx.body.user) {
         const userId = ctx.body.user.id;
 
-        // تحقق إذا المستخدم ما عنده vendeurStatus، حطله pending
         const user = await strapi.db.query('plugin::users-permissions.user').findOne({
           where: { id: userId },
         });
