@@ -3,9 +3,36 @@
 module.exports = {
   register({ strapi }) {},
 
-  bootstrap({ strapi }) {
+  async bootstrap({ strapi }) {
+    // ── إنشاء Roles: Acheteur و Vendeur ──────────────────
+    const existingRoles = await strapi.db.query('plugin::users-permissions.role').findMany();
+    const roleNames = existingRoles.map(r => r.type);
 
-    // debug google config
+    // إنشاء Acheteur إذا لم يكن موجوداً
+    if (!roleNames.includes('acheteur')) {
+      await strapi.db.query('plugin::users-permissions.role').create({
+        data: {
+          name: 'Acheteur',
+          description: 'Role for buyers',
+          type: 'acheteur',
+        },
+      });
+      console.log('✅ Role "Acheteur" created');
+    }
+
+    // إنشاء Vendeur إذا لم يكن موجوداً
+    if (!roleNames.includes('vendeur')) {
+      await strapi.db.query('plugin::users-permissions.role').create({
+        data: {
+          name: 'Vendeur',
+          description: 'Role for sellers',
+          type: 'vendeur',
+        },
+      });
+      console.log('✅ Role "Vendeur" created');
+    }
+
+    // ── Debug Routes ──────────────────────────────────────
     strapi.server.router.get("/api/debug/google", async (ctx) => {
       try {
         const store = strapi.store({ type: 'plugin', name: 'users-permissions' });
@@ -23,7 +50,6 @@ module.exports = {
       }
     });
 
-    // debug google error
     strapi.server.router.get("/api/debug/google-error", async (ctx) => {
       try {
         const grant = strapi.server.app.middleware.find(m => m.name === 'grant' || (m && m.toString().includes('grant')));
@@ -33,6 +59,7 @@ module.exports = {
       }
     });
 
+    // ── Route: /api/admin/users ───────────────────────────
     strapi.server.router.get("/api/admin/users", async (ctx) => {
       try {
         // ── 1. التحقق من وجود Authorization header ──────────
