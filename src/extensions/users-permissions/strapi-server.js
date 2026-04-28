@@ -32,10 +32,18 @@ module.exports = (plugin) => {
       role = await strapi.db.query('plugin::users-permissions.role').findOne({
         where: { type: 'vendeur' },
       });
+      
+      if (!role) {
+        console.warn('⚠️ Role "vendeur" not found, falling back to authenticated');
+      }
     } else {
       role = await strapi.db.query('plugin::users-permissions.role').findOne({
         where: { type: 'acheteur' },
       });
+      
+      if (!role) {
+        console.warn('⚠️ Role "acheteur" not found, falling back to authenticated');
+      }
     }
 
     // fallback إلى authenticated إذا لم يوجد
@@ -47,7 +55,7 @@ module.exports = (plugin) => {
 
     if (!role) {
       ctx.status = 500;
-      ctx.body = { error: { message: 'لم يتم العثور على الدور المطلوب' } };
+      ctx.body = { error: { message: 'لم يتم العثور على أي دور متاح. تأكد من إنشاء الأدوار في Strapi Admin.' } };
       return;
     }
 

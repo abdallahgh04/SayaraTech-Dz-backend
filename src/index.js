@@ -33,6 +33,15 @@ module.exports = {
     }
 
     // ── Debug Routes ──────────────────────────────────────
+    strapi.server.router.get("/api/debug/roles", async (ctx) => {
+      try {
+        const roles = await strapi.db.query('plugin::users-permissions.role').findMany();
+        ctx.body = { roles: roles.map(r => ({ id: r.id, name: r.name, type: r.type })) };
+      } catch (e) {
+        ctx.body = { error: e.message };
+      }
+    });
+
     strapi.server.router.get("/api/debug/google", async (ctx) => {
       try {
         const store = strapi.store({ type: 'plugin', name: 'users-permissions' });
