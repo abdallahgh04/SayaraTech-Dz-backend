@@ -35,6 +35,7 @@ module.exports = (plugin) => {
       const {
         username, email, password,
         isVendor,
+        vendeurStatus,
         firstName, lastName, phone, birthDate, gender,
       } = ctx.request.body;
 
@@ -77,10 +78,10 @@ module.exports = (plugin) => {
       }
 
       // ── 3. جلب الدور المناسب ──────────────────────────────
-      // isVendor: true/"true"  → دور "vendeur"
-      // isVendor: false/"false"/undefined → دور "acheteur"
+      // الـ frontend يرسل vendeurStatus: "pending" للـ vendeur
+      // أو isVendor: true/"true" — ندعم الحالتين
       strapiInstance.log.info(`[register] isVendor raw value: ${JSON.stringify(isVendor)} | type: ${typeof isVendor}`);
-      const isVendorBool = isVendor === true || isVendor === 'true';
+      const isVendorBool = isVendor === true || isVendor === 'true' || vendeurStatus === 'pending';
       strapiInstance.log.info(`[register] isVendorBool: ${isVendorBool} | roleName: ${isVendorBool ? 'vendeur' : 'acheteur'}`);
       const roleName = isVendorBool ? 'vendeur' : 'acheteur';
       let assignedRole = await strapiInstance.db
@@ -113,7 +114,7 @@ module.exports = (plugin) => {
             provider:      'local',
             confirmed:     true,
             blocked:       false,
-            vendeurStatus: isVendorBool ? 'pending' : null,
+            vendeurStatus: isVendorBool ? (vendeurStatus || 'pending') : null,
             role:          assignedRole.id,
           },
         });

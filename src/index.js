@@ -4,6 +4,64 @@ module.exports = {
   register({ strapi }) {},
 
   bootstrap({ strapi }) {
+
+    // ── السماح للمستخدم بتحديث بياناته عبر PUT /api/users/:id ─────────────
+    // الـ frontend يستدعي هذا بـ STRAPI_TOKEN الذي يفشل — نعترضه ونقبل JWT المستخدم
+    strapi.server.router.put("/api/users/:id", async (ctx, next) => {
+      try {
+        const authHeader = ctx.request.headers['authorization'];
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return next(); // اتركه لـ Strapi يتعامل معه
+        }
+
+        const token = authHeader.split(' ')[1];
+        let decoded;
+        try {
+          decoded = await strapi.plugin('users-permissions').service('jwt').verify(token);
+        } catch {
+          return next(); // token غير صالح — اتركه لـ Strapi
+        }
+
+        const targetId = parseInt(ctx.params.id, 10);
+
+        // المستخدم يعدّل نفسه فقط
+        if (decoded.id !== targetId) {
+          ctx.status = 403;
+          ctx.body = { error: 'لا يمكنك تعديل بيانات مستخدم آخر' };
+          return;
+        }
+
+        const { vendeurStatus } = ctx.request.body;
+
+        // فقط vendeurStatus مسموح بتعديله هنا
+        const allowedStatuses = ['pending', 'approved', 'rejected'];
+        if (!vendeurStatus || !allowedStatuses.includes(vendeurStatus)) {
+          return next(); // اتركه لـ Strapi يتعامل مع باقي الحقول
+        }
+
+        const updated = await strapi.db.query('plugin::users-permissions.user').update({
+          where: { id: targetId },
+          data: { vendeurStatus },
+          populate: { role: true },
+        });
+
+        ctx.status = 200;
+        ctx.body = {
+          id: updated.id,
+          username: updated.username,
+          email: updated.email,
+          vendeurStatus: updated.vendeurStatus,
+          role: updated.role
+            ? { id: updated.role.id, name: updated.role.name, type: updated.role.type }
+            : null,
+        };
+
+      } catch (e) {
+        strapi.log.error('[PUT /api/users/:id] Error:', e.message);
+        return next();
+      }
+    });
+
     strapi.server.router.get("/api/admin/users", async (ctx) => {
       try {
         // ── 1. التحقق من وجود Authorization header ──────────
