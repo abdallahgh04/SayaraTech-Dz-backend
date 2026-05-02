@@ -94,8 +94,10 @@ module.exports = (plugin) => {
       }
 
       // ── 4. تشفير كلمة المرور وإنشاء المستخدم ─────────────
-      const hashedPassword = await strapiInstance.plugins['users-permissions']
-        .services.user.hashPassword({ password });
+      const hashedPassword = await strapiInstance
+        .plugin('users-permissions')
+        .service('user')
+        .hashPassword({ password });
 
       const newUser = await strapiInstance.db
         .query('plugin::users-permissions.user')
@@ -132,8 +134,10 @@ module.exports = (plugin) => {
       }
 
       // ── 6. توليد JWT والرد ────────────────────────────────
-      const jwt = strapiInstance.plugins['users-permissions']
-        .services.jwt.issue({ id: newUser.id });
+      const jwt = strapiInstance
+        .plugin('users-permissions')
+        .service('jwt')
+        .issue({ id: newUser.id });
 
       ctx.status = 200;
       ctx.body = {

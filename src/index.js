@@ -19,7 +19,7 @@ module.exports = {
         // ── 2. التحقق من صحة الـ JWT ─────────────────────────
         let decoded;
         try {
-          decoded = await strapi.plugins['users-permissions'].services.jwt.verify(token);
+          decoded = await strapi.plugin('users-permissions').service('jwt').verify(token);
         } catch {
           ctx.status = 401;
           ctx.body = { error: 'Unauthorized: invalid token' };
