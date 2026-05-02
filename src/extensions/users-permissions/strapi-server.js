@@ -77,7 +77,12 @@ module.exports = (plugin) => {
       }
 
       // ── 3. جلب الدور المناسب ──────────────────────────────
-      const roleName = isVendor ? 'vendeur' : 'acheteur';
+      // isVendor: true/"true"  → دور "vendeur"
+      // isVendor: false/"false"/undefined → دور "acheteur"
+      strapiInstance.log.info(`[register] isVendor raw value: ${JSON.stringify(isVendor)} | type: ${typeof isVendor}`);
+      const isVendorBool = isVendor === true || isVendor === 'true';
+      strapiInstance.log.info(`[register] isVendorBool: ${isVendorBool} | roleName: ${isVendorBool ? 'vendeur' : 'acheteur'}`);
+      const roleName = isVendorBool ? 'vendeur' : 'acheteur';
       let assignedRole = await strapiInstance.db
         .query('plugin::users-permissions.role')
         .findOne({ where: { name: roleName } });
@@ -108,7 +113,7 @@ module.exports = (plugin) => {
             provider:      'local',
             confirmed:     true,
             blocked:       false,
-            vendeurStatus: isVendor ? 'pending' : null,
+            vendeurStatus: isVendorBool ? 'pending' : null,
             role:          assignedRole.id,
           },
         });
