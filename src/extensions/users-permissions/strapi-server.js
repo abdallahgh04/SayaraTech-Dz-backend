@@ -26,6 +26,9 @@ module.exports = (plugin) => {
 
   // ── التسجيل ─────────────────────────────────────────────────────────────
   plugin.controllers.auth.register = async (ctx) => {
+    // في Strapi v4 extensions، strapi متاح كـ global أو عبر ctx.state
+    const strapiInstance = strapi;
+
     try {
       const {
         username, email, password,
@@ -59,9 +62,11 @@ module.exports = (plugin) => {
       }
 
       // ── 2. التحقق من عدم تكرار الإيميل أو اليوزرنيم ──────
-      const existingUser = await strapi.db.query('plugin::users-permissions.user').findOne({
-        where: { $or: [{ email: email.toLowerCase() }, { username }] },
-      });
+      const existingUser = await strapiInstance.db
+        .query('plugin::users-permissions.user')
+        .findOne({
+          where: { $or: [{ email: email.toLowerCase() }, { username }] },
+        });
 
       if (existingUser) {
         ctx.status = 400;
@@ -70,18 +75,17 @@ module.exports = (plugin) => {
       }
 
       // ── 3. جلب الدور المناسب ──────────────────────────────
-      // isVendor: true  → دور "vendeur"
-      // isVendor: false → دور "acheteur"
       const roleName = isVendor ? 'vendeur' : 'acheteur';
-      let assignedRole = await strapi.db.query('plugin::users-permissions.role').findOne({
-        where: { name: roleName },
-      });
+      let assignedRole = await strapiInstance.db
+        .query('plugin::users-permissions.role')
+        .findOne({ where: { name: roleName } });
 
       if (!assignedRole) {
-        strapi.log.warn(`[register] Role "${roleName}" not found, falling back to "authenticated"`);
-        assignedRole = await strapi.db.query('plugin::users-permissions.role').findOne({
-          where: { type: 'authenticated' },
-        });
+        strapiInstance.log.warn(`[register] Role "${roleName}" not found, falling back to "authenticated"`);
+        assignedRole = await strapiInstance.db
+          .query('plugin::users-permissions.role')
+          .findOne({ where: { type: 'authenticated' } });
+
         if (!assignedRole) {
           ctx.status = 500;
           ctx.body = { error: { message: 'خطأ في الخادم: لم يتم العثور على الدور' } };
@@ -90,43 +94,46 @@ module.exports = (plugin) => {
       }
 
       // ── 4. تشفير كلمة المرور وإنشاء المستخدم ─────────────
-      const hashedPassword = await strapi.plugins['users-permissions'].services.user.hashPassword({ password });
+      const hashedPassword = await strapiInstance.plugins['users-permissions']
+        .services.user.hashPassword({ password });
 
-      const newUser = await strapi.db.query('plugin::users-permissions.user').create({
-        data: {
-          username,
-          email:         email.toLowerCase(),
-          password:      hashedPassword,
-          provider:      'local',
-          confirmed:     true,
-          blocked:       false,
-          vendeurStatus: isVendor ? 'pending' : null,
-          role:          assignedRole.id,
-        },
-      });
+      const newUser = await strapiInstance.db
+        .query('plugin::users-permissions.user')
+        .create({
+          data: {
+            username,
+            email:         email.toLowerCase(),
+            password:      hashedPassword,
+            provider:      'local',
+            confirmed:     true,
+            blocked:       false,
+            vendeurStatus: isVendor ? 'pending' : null,
+            role:          assignedRole.id,
+          },
+        });
 
       // ── 5. إنشاء البروفايل إذا أُرسلت بيانات ─────────────
       if (firstName || lastName || phone) {
         try {
-          await strapi.db.query('api::profil.profil').create({
+          await strapiInstance.db.query('api::profil.profil').create({
             data: {
-              firstName:   firstName   || null,
-              lastName:    lastName    || null,
-              phone:       phone       || null,
-              birthDate:   birthDate   || null,
-              gender:      gender      || null,
+              firstName:   firstName || null,
+              lastName:    lastName  || null,
+              phone:       phone     || null,
+              birthDate:   birthDate || null,
+              gender:      gender    || null,
               user:        newUser.id,
               publishedAt: new Date(),
             },
           });
         } catch (profileErr) {
-          // البروفايل اختياري — نسجّل الخطأ لكن لا نوقف التسجيل
-          strapi.log.error('[register] Failed to create profil:', profileErr);
+          strapiInstance.log.error('[register] Failed to create profil:', profileErr);
         }
       }
 
       // ── 6. توليد JWT والرد ────────────────────────────────
-      const jwt = strapi.plugins['users-permissions'].services.jwt.issue({ id: newUser.id });
+      const jwt = strapiInstance.plugins['users-permissions']
+        .services.jwt.issue({ id: newUser.id });
 
       ctx.status = 200;
       ctx.body = {
@@ -135,14 +142,15 @@ module.exports = (plugin) => {
       };
 
     } catch (err) {
-      strapi.log.error('[register] Unexpected error:', err);
+      strapiInstance.log.error('[register] Unexpected error:', err.message, err.stack);
       ctx.status = 500;
-      ctx.body = { error: { message: 'حدث خطأ غير متوقع أثناء التسجيل' } };
+      ctx.body = { error: { message: err.message || 'حدث خطأ غير متوقع أثناء التسجيل' } };
     }
   };
 
   // ── تسجيل الدخول والـ OAuth callback ────────────────────────────────────
   plugin.controllers.auth.callback = async (ctx) => {
+    const strapiInstance = strapi;
     const provider = ctx.params && ctx.params.provider;
 
     // ── تسجيل الدخول العادي (local) ───────────────────────────
@@ -150,24 +158,20 @@ module.exports = (plugin) => {
       try {
         await originalCallback(ctx);
 
-        // أضف الدور وvendeurStatus للـ response بعد نجاح تسجيل الدخول
         if (ctx.status === 200 && ctx.body && ctx.body.user) {
           const userId = ctx.body.user.id;
-          const user = await strapi.db.query('plugin::users-permissions.user').findOne({
-            where:    { id: userId },
-            populate: { role: true },
-          });
+          const user = await strapiInstance.db
+            .query('plugin::users-permissions.user')
+            .findOne({ where: { id: userId }, populate: { role: true } });
 
           if (user) {
-            ctx.body.user = buildUserResponse(user, user.role);
-            // أعد إرفاق الـ jwt لأن buildUserResponse لا يتضمنه
-            ctx.body.jwt = ctx.body.jwt;
+            const savedJwt = ctx.body.jwt;
+            ctx.body = { jwt: savedJwt, user: buildUserResponse(user, user.role) };
           }
         }
       } catch (err) {
-        // إذا كان الخطأ من Strapi (كلمة مرور خاطئة) نعيده كما هو
         if (ctx.status && ctx.status !== 200) return;
-        strapi.log.error('[callback:local] Unexpected error:', err);
+        strapiInstance.log.error('[callback:local] Unexpected error:', err);
         ctx.status = 500;
         ctx.body = { error: { message: 'حدث خطأ أثناء تسجيل الدخول' } };
       }
@@ -180,45 +184,40 @@ module.exports = (plugin) => {
 
       if (ctx.body && ctx.body.user) {
         const userId = ctx.body.user.id;
-        const user = await strapi.db.query('plugin::users-permissions.user').findOne({
-          where:    { id: userId },
-          populate: { role: true },
-        });
+        const user = await strapiInstance.db
+          .query('plugin::users-permissions.user')
+          .findOne({ where: { id: userId }, populate: { role: true } });
 
         if (user) {
-          let updatedData = {};
+          const updatedData = {};
 
-          // تعيين vendeurStatus للمستخدمين الجدد عبر OAuth
           if (!user.vendeurStatus) {
             updatedData.vendeurStatus = 'pending';
           }
 
-          // تعيين دور acheteur إذا كان الدور Authenticated (مستخدم جديد عبر OAuth)
           if (user.role && user.role.type === 'authenticated') {
-            const acheteurRole = await strapi.db.query('plugin::users-permissions.role').findOne({
-              where: { name: 'acheteur' },
-            });
+            const acheteurRole = await strapiInstance.db
+              .query('plugin::users-permissions.role')
+              .findOne({ where: { name: 'acheteur' } });
             if (acheteurRole) {
               updatedData.role = acheteurRole.id;
-              user.role = acheteurRole; // تحديث محلي للـ response
+              user.role = acheteurRole;
             }
           }
 
-          // تطبيق التحديثات إذا وجدت
           if (Object.keys(updatedData).length > 0) {
-            const updated = await strapi.db.query('plugin::users-permissions.user').update({
-              where: { id: userId },
-              data:  updatedData,
-            });
+            const updated = await strapiInstance.db
+              .query('plugin::users-permissions.user')
+              .update({ where: { id: userId }, data: updatedData });
             user.vendeurStatus = updated.vendeurStatus;
           }
 
-          ctx.body.user = buildUserResponse(user, user.role);
-          ctx.body.jwt  = ctx.body.jwt;
+          const savedJwt = ctx.body.jwt;
+          ctx.body = { jwt: savedJwt, user: buildUserResponse(user, user.role) };
         }
       }
     } catch (err) {
-      strapi.log.error('[callback:oauth] Error:', err);
+      strapiInstance.log.error('[callback:oauth] Error:', err);
       ctx.status = 500;
       ctx.body = { error: { message: 'حدث خطأ أثناء تسجيل الدخول' } };
     }
