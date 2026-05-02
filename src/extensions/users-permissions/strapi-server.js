@@ -1,5 +1,7 @@
 'use strict';
 
+const bcrypt = require('bcryptjs');
+
 // ── مساعد: بناء كائن المستخدم للـ response ──────────────────────────────────
 function buildUserResponse(user, role) {
   return {
@@ -94,10 +96,7 @@ module.exports = (plugin) => {
       }
 
       // ── 4. تشفير كلمة المرور وإنشاء المستخدم ─────────────
-      const hashedPassword = await strapiInstance
-        .plugin('users-permissions')
-        .service('user')
-        .hashPassword({ password });
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       const newUser = await strapiInstance.db
         .query('plugin::users-permissions.user')
