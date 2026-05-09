@@ -5,40 +5,35 @@ module.exports = {
 
   bootstrap({ strapi }) {
 
-    // ── السماح للمستخدم بتحديث بياناته عبر PUT /api/users/:id ─────────────
-    // الـ frontend يستدعي هذا بـ STRAPI_TOKEN الذي يفشل — نعترضه ونقبل JWT المستخدم
-    strapi.server.router.put("/api/users/:id", async (ctx, next) => {
+    // ── اعتراض PUT /api/users/:id عبر middleware ────────────────────────────
+    // الـ frontend يرسل هذا الطلب بـ token خاطئ — نعترضه قبل وصوله لـ Strapi
+    strapi.server.use(async (ctx, next) => {
+      const isPutUser = ctx.method === 'PUT' && /^\/api\/users\/\d+$/.test(ctx.path);
+      if (!isPutUser) return next();
+
+      const authHeader = ctx.request.headers['authorization'];
+      if (!authHeader || !authHeader.startsWith('Bearer ')) return next();
+
+      const token = authHeader.split(' ')[1];
+      let decoded;
       try {
-        const authHeader = ctx.request.headers['authorization'];
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          return next(); // اتركه لـ Strapi يتعامل معه
-        }
+        decoded = await strapi.plugin('users-permissions').service('jwt').verify(token);
+      } catch {
+        return next(); // token غير صالح — اتركه لـ Strapi
+      }
 
-        const token = authHeader.split(' ')[1];
-        let decoded;
-        try {
-          decoded = await strapi.plugin('users-permissions').service('jwt').verify(token);
-        } catch {
-          return next(); // token غير صالح — اتركه لـ Strapi
-        }
+      const targetId = parseInt(ctx.path.split('/').pop(), 10);
 
-        const targetId = parseInt(ctx.params.id, 10);
+      // المستخدم يعدّل نفسه فقط
+      if (decoded.id !== targetId) return next();
 
-        // المستخدم يعدّل نفسه فقط
-        if (decoded.id !== targetId) {
-          ctx.status = 403;
-          ctx.body = { error: 'لا يمكنك تعديل بيانات مستخدم آخر' };
-          return;
-        }
+      const body = ctx.request.body;
+      const { vendeurStatus } = body || {};
 
-        const { vendeurStatus } = ctx.request.body;
+      const allowedStatuses = ['pending', 'approved', 'rejected'];
+      if (!vendeurStatus || !allowedStatuses.includes(vendeurStatus)) return next();
 
-        // فقط vendeurStatus مسموح بتعديله هنا
-        const allowedStatuses = ['pending', 'approved', 'rejected'];
-        if (!vendeurStatus || !allowedStatuses.includes(vendeurStatus)) {
-          return next(); // اتركه لـ Strapi يتعامل مع باقي الحقول
-        }
-
+      try {
         const updated = await strapi.db.query('plugin::users-permissions.user').update({
           where: { id: targetId },
           data: { vendeurStatus },
@@ -55,9 +50,8 @@ module.exports = {
             ? { id: updated.role.id, name: updated.role.name, type: updated.role.type }
             : null,
         };
-
       } catch (e) {
-        strapi.log.error('[PUT /api/users/:id] Error:', e.message);
+        strapi.log.error('[middleware PUT /api/users/:id] Error:', e.message);
         return next();
       }
     });
